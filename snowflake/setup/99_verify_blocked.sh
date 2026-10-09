@@ -39,3 +39,6 @@ check "Loader cannot use the transform warehouse" \
 
 check "Transformer cannot load into RAW" \
       "USE ROLE PNEUMA_TRANSFORMER; CREATE TABLE PNEUMA_DEV.RAW.SHOULD_FAIL (id INT)"
+
+check "Analyst cannot change semantic model files" \
+      "USE ROLE PNEUMA_ANALYST; REMOVE @PNEUMA_PROD.SEMANTIC.SEMANTIC_MODELS/does_not_matter.yaml"

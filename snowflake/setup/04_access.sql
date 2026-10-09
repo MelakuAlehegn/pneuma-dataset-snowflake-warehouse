@@ -7,7 +7,7 @@
 --                       PNEUMA_DEV                 PNEUMA_PROD
 --   PNEUMA_LOADER       RAW_RW                     RAW_RW
 --   PNEUMA_TRANSFORMER  RAW_R + TRANSFORM_RW       RAW_R + TRANSFORM_RW
---   PNEUMA_ANALYST      -                          MARTS_R
+--   PNEUMA_ANALYST      -                          MARTS_R + SEMANTIC_R
 --
 -- The analyst role only ever sees finished prod tables, read-only.
 --
@@ -28,3 +28,4 @@ GRANT DATABASE ROLE PNEUMA_PROD.TRANSFORM_RW TO ROLE PNEUMA_TRANSFORMER;
 
 -- Analyst (app + Cortex Analyst)
 GRANT DATABASE ROLE PNEUMA_PROD.MARTS_R      TO ROLE PNEUMA_ANALYST;
+GRANT DATABASE ROLE PNEUMA_PROD.SEMANTIC_R   TO ROLE PNEUMA_ANALYST;

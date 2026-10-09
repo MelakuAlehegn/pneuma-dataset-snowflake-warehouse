@@ -10,15 +10,17 @@
 --
 -- What it builds inside the database:
 --   Schemas   RAW, STAGING, INTERMEDIATE, MARTS   the data layers
---             SEMANTIC                            the Cortex Analyst YAML file (later)
+--             SEMANTIC                            Cortex Analyst YAML files (stage SEMANTIC_MODELS)
 --             APP                                 the Streamlit app (later)
 --             OPS                                 scheduled tasks and alerts (later)
 --
 --   Permission bundles ("database roles") that live inside this database:
 --             RAW_R         read RAW
 --             RAW_RW        read and load RAW              (includes RAW_R)
---             TRANSFORM_RW  build tables/views in STAGING, INTERMEDIATE, MARTS
+--             TRANSFORM_RW  build tables/views in STAGING, INTERMEDIATE, MARTS;
+--                           upload semantic model files
 --             MARTS_R       read MARTS
+--             SEMANTIC_R    read semantic model files
 --   These get handed to the job roles in 04_access.sql. Because they live
 --   inside the database, they come along automatically when the database is
 --   cloned.
@@ -58,6 +60,7 @@ CREATE DATABASE ROLE IF NOT EXISTS RAW_R        COMMENT = 'Read RAW.';
 CREATE DATABASE ROLE IF NOT EXISTS RAW_RW       COMMENT = 'Read and load RAW.';
 CREATE DATABASE ROLE IF NOT EXISTS TRANSFORM_RW COMMENT = 'Build objects in STAGING, INTERMEDIATE and MARTS.';
 CREATE DATABASE ROLE IF NOT EXISTS MARTS_R      COMMENT = 'Read MARTS.';
+CREATE DATABASE ROLE IF NOT EXISTS SEMANTIC_R   COMMENT = 'Read semantic model files.';
 
 -- RAW_RW can do everything RAW_R can, plus write.
 GRANT DATABASE ROLE RAW_R TO DATABASE ROLE RAW_RW;
@@ -96,3 +99,23 @@ GRANT SELECT ON ALL TABLES    IN SCHEMA MARTS   TO DATABASE ROLE MARTS_R;
 GRANT SELECT ON FUTURE TABLES IN SCHEMA MARTS   TO DATABASE ROLE MARTS_R;
 GRANT SELECT ON ALL VIEWS     IN SCHEMA MARTS   TO DATABASE ROLE MARTS_R;
 GRANT SELECT ON FUTURE VIEWS  IN SCHEMA MARTS   TO DATABASE ROLE MARTS_R;
+
+-- ---------------------------------------------------------------------------
+-- Semantic model files (Cortex Analyst)
+-- ---------------------------------------------------------------------------
+-- A stage owned by SYSADMIN, so it's part of the platform, not of whoever
+-- uploads to it. Server-side encryption and a file listing (directory) make it
+-- usable from Snowsight's Cortex Analyst screen.
+CREATE STAGE IF NOT EXISTS SEMANTIC.SEMANTIC_MODELS
+    DIRECTORY  = (ENABLE = TRUE)
+    ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')
+    COMMENT    = 'YAML semantic models read by Cortex Analyst.';
+
+-- SEMANTIC_R: read the YAML files (Cortex Analyst reads them as the caller).
+GRANT USAGE ON DATABASE IDENTIFIER($db_name)  TO DATABASE ROLE SEMANTIC_R;
+GRANT USAGE ON SCHEMA SEMANTIC                TO DATABASE ROLE SEMANTIC_R;
+GRANT READ  ON STAGE SEMANTIC.SEMANTIC_MODELS TO DATABASE ROLE SEMANTIC_R;
+
+-- TRANSFORM_RW: upload new versions of the YAML files.
+GRANT USAGE       ON SCHEMA SEMANTIC                TO DATABASE ROLE TRANSFORM_RW;
+GRANT READ, WRITE ON STAGE SEMANTIC.SEMANTIC_MODELS TO DATABASE ROLE TRANSFORM_RW;

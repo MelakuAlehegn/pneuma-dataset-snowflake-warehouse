@@ -1,0 +1,27 @@
+version: 2
+
+sources:
+  - name: pneuma
+    # Same database as the target, so dev reads PNEUMA_DEV.RAW and prod reads
+    # PNEUMA_PROD.RAW.
+    database: "{{ target.database }}"
+    schema: RAW
+    description: Raw pNEUMA files, loaded by snowflake/ingest/02_load.sql.
+
+    tables:
+      - name: pneuma_lines
+        identifier: PNEUMA_LINES
+        description: >
+          One row per line of a pNEUMA file, unsplit. Each line is one vehicle:
+          4 values (track_id, type, traveled_d, avg_speed), then 6 values per
+          trajectory point (lat, lon, speed, lon_acc, lat_acc, time), all
+          separated by "; ".
+        columns:
+          - name: source_file
+            description: File name in the stage (gzipped on upload, so ends in .gz).
+          - name: line_number
+            description: Line number inside the file.
+          - name: line
+            description: The full, untouched line.
+          - name: loaded_at
+            description: When the row was loaded.

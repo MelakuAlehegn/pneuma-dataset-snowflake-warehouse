@@ -1,0 +1,25 @@
+name: pneuma
+version: "1.0.0"
+config-version: 2
+
+profile: pneuma
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+# Where each layer lands, and how it's stored.
+#   staging      → view   (cheap; always reflects RAW)
+#   intermediate → view   (revisit per model when we port them)
+#   marts        → table  (read by the app and Cortex Analyst; should be fast)
+models:
+  pneuma:
+    staging:
+      +schema: STAGING
+      +materialized: view
+    intermediate:
+      +schema: INTERMEDIATE
+      +materialized: view
+    marts:
+      +schema: MARTS
+      +materialized: table

@@ -1,0 +1,150 @@
+version: 2
+
+models:
+  - name: dim_vehicle_type
+    description: One row per vehicle type in the data (Car, Motorcycle, Taxi, Bus, Medium Vehicle, Heavy Vehicle).
+    columns:
+      - name: vehicle_type_sk
+        description: Key for joining.
+        data_tests: [unique, not_null]
+      - name: vehicle_type_name
+        description: Vehicle type name.
+        data_tests: [unique, not_null]
+
+  - name: dim_track
+    description: >
+      One row per vehicle: its type, when and by which drone it was recorded,
+      the source file's own distance and average speed, and a summary computed
+      from its points.
+    columns:
+      - name: track_sk
+        description: Key for joining.
+        data_tests: [unique, not_null]
+      - name: vehicle_type_sk
+        description: Link to dim_vehicle_type.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('dim_vehicle_type')
+              field: vehicle_type_sk
+      - name: source_file
+        description: pNEUMA file the vehicle came from.
+        data_tests: [not_null]
+      - name: track_id
+        description: Vehicle number, unique within a file.
+        data_tests: [not_null]
+      - name: vehicle_type
+        description: Vehicle type name (same as in dim_vehicle_type).
+        data_tests: [not_null]
+      - name: recording_date
+        description: Day of the recording.
+      - name: drone_id
+        description: Drone that recorded it (d1, d2, ...).
+      - name: window_start
+        description: Planned start of the recording window, local Athens time.
+      - name: window_end
+        description: >
+          Planned end of the recording window, from the file name. The data
+          can stop earlier; use last_seen_at for when the vehicle was actually last seen.
+      - name: total_distance_m
+        description: Distance traveled, in meters, as reported in the source file.
+      - name: avg_speed_kmh
+        description: Average speed, km/h, as reported in the source file.
+      - name: point_count
+        description: Number of points recorded.
+        data_tests: [not_null]
+      - name: first_seen_at
+        description: Clock time of the vehicle's first point.
+      - name: last_seen_at
+        description: Clock time of the vehicle's last point.
+      - name: duration_sec
+        description: How long the vehicle was in view, in seconds.
+      - name: min_speed_kmh
+        description: Lowest speed recorded.
+      - name: max_speed_kmh
+        description: Highest speed recorded.
+      - name: stopped_point_count
+        description: Points where the vehicle was effectively standing still (under 1 km/h).
+      - name: loaded_at
+        data_tests: [not_null]
+
+  - name: fct_trajectory_points
+    description: >
+      One row per recorded point per vehicle (every 0.04 s). The main fact
+      table. Built incrementally: each run only adds newly loaded points.
+    columns:
+      - name: trajectory_point_sk
+        description: Key for this point.
+        data_tests: [unique, not_null]
+      - name: track_sk
+        description: Link to dim_track.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('dim_track')
+              field: track_sk
+      - name: source_file
+        data_tests: [not_null]
+      - name: track_id
+        data_tests: [not_null]
+      - name: frame_idx
+        description: Point number within the vehicle's trajectory, starting at 0.
+        data_tests: [not_null]
+      - name: latitude
+        description: Latitude (WGS84).
+      - name: longitude
+        description: Longitude (WGS84).
+      - name: speed_kmh
+        description: Speed at this point, km/h.
+      - name: lon_acceleration_ms2
+        description: Acceleration along the direction of travel, m/s².
+      - name: lat_acceleration_ms2
+        description: Sideways acceleration, m/s².
+      - name: seconds_since_start
+        description: Seconds since the start of the recording window.
+      - name: recorded_at
+        description: Clock time of this point, local Athens time.
+      - name: delta_time_sec
+        description: Seconds since the previous point. Empty for a vehicle's first point.
+      - name: delta_speed_kmh
+        description: Speed change since the previous point. Empty for the first point.
+      - name: delta_distance_m
+        description: Distance from the previous point, in meters. Empty for the first point.
+      - name: speed_bucket
+        description: "Speed band: STOPPED (<1 km/h), SLOW (<10), NORMAL (<50), FAST."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['STOPPED', 'SLOW', 'NORMAL', 'FAST']
+      - name: loaded_at
+        data_tests: [not_null]
+
+  - name: agg_speed_by_vehicle_type
+    description: Speed statistics per vehicle type, one row per type, pre-computed from all points.
+    columns:
+      - name: vehicle_type_sk
+        description: Link to dim_vehicle_type.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              to: ref('dim_vehicle_type')
+              field: vehicle_type_sk
+      - name: vehicle_type_name
+        description: Vehicle type name.
+        data_tests: [unique, not_null]
+      - name: observation_count
+        description: Number of points behind these numbers.
+        data_tests: [not_null]
+      - name: avg_speed_kmh
+        description: Average speed, km/h.
+      - name: min_speed_kmh
+        description: Lowest speed, km/h.
+      - name: max_speed_kmh
+        description: Highest speed, km/h.
+      - name: stddev_speed_kmh
+        description: Standard deviation of speed (how spread out speeds are).
+      - name: median_speed_kmh
+        description: Middle speed value; half of points are slower, half faster.
+      - name: p95_speed_kmh
+        description: 95% of points are at or below this speed.

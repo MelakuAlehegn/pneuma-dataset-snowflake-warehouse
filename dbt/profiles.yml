@@ -1,0 +1,32 @@
+# Connection settings for dbt.
+#
+# This project runs INSIDE Snowflake (dbt Projects on Snowflake), so dbt uses
+# the session of whoever runs it: no passwords or keys belong here. Snowflake
+# still expects the usual fields to be present; account and user are ignored.
+#
+# The target picks the environment, and the environment is the database:
+#   dev  → PNEUMA_DEV
+#   prod → PNEUMA_PROD
+
+pneuma:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: not_used
+      user: not_used
+      role: PNEUMA_TRANSFORMER
+      warehouse: TRANSFORM_WH
+      database: PNEUMA_DEV
+      schema: STAGING      # fallback for any model without its own schema
+      threads: 4
+
+    prod:
+      type: snowflake
+      account: not_used
+      user: not_used
+      role: PNEUMA_TRANSFORMER
+      warehouse: TRANSFORM_WH
+      database: PNEUMA_PROD
+      schema: STAGING
+      threads: 4

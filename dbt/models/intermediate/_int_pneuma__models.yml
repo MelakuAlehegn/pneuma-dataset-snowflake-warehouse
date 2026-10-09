@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: int_trajectory_points_with_deltas
+    description: >
+      Each point plus how it changed since the same vehicle's previous point.
+      Not stored (ephemeral); used by fct_trajectory_points.
+    columns:
+      - name: delta_time_sec
+        description: Seconds since the previous point. Empty for a vehicle's first point.
+      - name: delta_speed_kmh
+        description: Speed change since the previous point. Empty for the first point.
+      - name: delta_distance_m
+        description: Straight-line distance from the previous point, in meters. Empty for the first point.
+      - name: speed_bucket
+        description: "Speed band: STOPPED (<1 km/h), SLOW (<10), NORMAL (<50), FAST."
+
+  - name: int_track_kinematics
+    description: One row per vehicle summarizing all of its points.
+    columns:
+      - name: track_sk
+        data_tests: [unique, not_null]
+      - name: point_count
+        description: Number of points recorded for the vehicle.
+        data_tests: [not_null]
+      - name: first_seen_sec
+        description: Seconds into the recording of the vehicle's first point.
+      - name: last_seen_sec
+        description: Seconds into the recording of the vehicle's last point.
+      - name: duration_sec
+        description: How long the vehicle was in view, in seconds.
+      - name: first_seen_at
+        description: Clock time of the vehicle's first point.
+      - name: last_seen_at
+        description: Clock time of the vehicle's last point.
+      - name: min_speed_kmh
+        description: Lowest speed recorded.
+      - name: max_speed_kmh
+        description: Highest speed recorded.
+      - name: stopped_point_count
+        description: Points where the vehicle was effectively standing still (under 1 km/h).

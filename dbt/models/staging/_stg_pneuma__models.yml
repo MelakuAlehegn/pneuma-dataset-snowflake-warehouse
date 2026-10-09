@@ -1,0 +1,91 @@
+version: 2
+
+models:
+  - name: stg_pneuma_tracks
+    description: One row per vehicle per source file, with when and by which drone it was recorded.
+    columns:
+      - name: track_sk
+        description: Key for joining, made from source_file + track_id.
+        data_tests: [unique, not_null]
+      - name: source_file
+        description: Original pNEUMA file name (without .gz).
+        data_tests: [not_null]
+      - name: track_id
+        description: Vehicle number, unique within a file.
+        data_tests: [not_null]
+      - name: vehicle_type
+        description: "Car, Motorcycle, Taxi, Bus, Medium Vehicle or Heavy Vehicle."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['Car', 'Motorcycle', 'Taxi', 'Bus', 'Medium Vehicle', 'Heavy Vehicle']
+      - name: total_distance_m
+        description: Distance the vehicle traveled during the recording, in meters.
+        data_tests:
+          - in_range: {min_value: 0, max_value: 50000}
+      - name: avg_speed_kmh
+        description: Average speed during the recording, in km/h.
+        data_tests:
+          - in_range: {min_value: 0, max_value: 200}
+      - name: point_count
+        description: Number of trajectory points recorded for this vehicle.
+      - name: recording_date
+        description: Day of the recording, from the file name.
+        data_tests: [not_null]
+      - name: drone_id
+        description: Drone that recorded it (d1, d2, ...), from the file name.
+        data_tests: [not_null]
+      - name: window_start
+        description: Start of the recording window, local Athens time.
+        data_tests: [not_null]
+      - name: window_end
+        description: End of the recording window, local Athens time.
+        data_tests: [not_null]
+
+  - name: stg_pneuma_trajectory_points
+    description: One row per recorded point per vehicle (every 0.04 s).
+    columns:
+      - name: trajectory_point_sk
+        description: Key for this point, made from source_file + track_id + frame_idx.
+        data_tests: [unique, not_null]
+      - name: track_sk
+        description: Key of the vehicle this point belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_pneuma_tracks')
+              field: track_sk
+      - name: frame_idx
+        description: Point number within the vehicle's trajectory, starting at 0.
+      - name: latitude
+        description: Latitude (WGS84). Recordings are over downtown Athens.
+        data_tests:
+          - not_null
+          - in_range: {min_value: 37.9, max_value: 38.05}
+      - name: longitude
+        description: Longitude (WGS84). Recordings are over downtown Athens.
+        data_tests:
+          - not_null
+          - in_range: {min_value: 23.70, max_value: 23.80}
+      - name: speed_kmh
+        description: Speed at this point, km/h.
+        data_tests:
+          - in_range: {min_value: 0, max_value: 200}
+      - name: lon_acceleration_ms2
+        description: Acceleration along the direction of travel, m/s².
+        data_tests:
+          - in_range:
+              min_value: -15
+              max_value: 15
+              config: {severity: warn}
+      - name: lat_acceleration_ms2
+        description: Sideways acceleration, m/s².
+        data_tests:
+          - in_range: {min_value: -15, max_value: 15}
+      - name: seconds_since_start
+        description: Seconds since the start of the recording window.
+        data_tests:
+          - in_range: {min_value: 0, max_value: 7200}
+      - name: recorded_at
+        description: Clock time of this point, local Athens time.
+        data_tests: [not_null]

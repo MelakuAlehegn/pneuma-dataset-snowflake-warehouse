@@ -30,6 +30,7 @@ Two databases, `PNEUMA_DEV` and `PNEUMA_PROD`, hold the same layout.
 snowflake/setup/   one-time account setup: roles, warehouses, databases, permissions
 snowflake/ingest/  loading pNEUMA files into RAW
 dbt/               dbt project (runs inside Snowflake)
+semantic/          Cortex Analyst semantic model (YAML)
 docs/              worklog and design notes
 ```
 
@@ -74,4 +75,12 @@ snow dbt deploy PNEUMA_DBT --source dbt --profiles-dir dbt \
 # (Snowflake options go BEFORE the project name; everything after it is passed to dbt)
 snow dbt execute --database PNEUMA_DEV --schema OPS --role PNEUMA_TRANSFORMER --warehouse TRANSFORM_WH \
     PNEUMA_DBT build --target dev
+```
+
+## Semantic model
+
+```bash
+snow stage copy semantic/pneuma_traffic.yaml @PNEUMA_PROD.SEMANTIC.SEMANTIC_MODELS \
+    --role PNEUMA_TRANSFORMER --overwrite
+snow sql --role SYSADMIN -q "ALTER STAGE PNEUMA_PROD.SEMANTIC.SEMANTIC_MODELS REFRESH"
 ```

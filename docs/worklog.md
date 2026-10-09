@@ -78,3 +78,60 @@ Short notes on what was done in each step, plus the "why" behind key choices.
 - **No packages, no internet access needed.** The old project only used dbt_utils for keys and dbt_expectations for range checks; both are a few lines of our own code. Fewer moving parts, nothing to download inside Snowflake.
 - **Use Snowflake built-ins.** `HAVERSINE()` replaces the custom macro (it returns km, so ×1000); `COUNT_IF` replaces Postgres's `count(*) filter (where …)`.
 - **Make the heavy step incremental.** The expensive split is in staging, so incremental there saves the most; the fact table is incremental too.
+
+## Step 4a · Prod filled, semantic stage ready (done 2026-10-09)
+
+**What was built**
+- `PNEUMA_PROD` loaded (785 lines) and built with dbt `--target prod`; prod has its own dbt project object in `PNEUMA_PROD.OPS`.
+- Each database has a stage `SEMANTIC.SEMANTIC_MODELS` for Cortex Analyst YAML files (owned by SYSADMIN).
+- New bundle `SEMANTIC_R` (read the YAML) given to the analyst role in prod; the transformer role can upload.
+- Blocked checks now 7, all pass (analyst can't change semantic files).
+
+**Why notes**
+- **Dev and prod each have their own stage, table and dbt project.** Nothing is shared, so prod can be loaded and scheduled separately.
+- **`-D name=value` fills `<% name %>` placeholders.** The CLI does this before sending the file; a missing value stops it before anything runs.
+
+## Step 4b · First semantic model (done 2026-10-09)
+
+**What was built**
+- `semantic/pneuma_traffic.yaml`: two tables (`vehicles` = DIM_TRACK, `positions` = FCT_TRAJECTORY_POINTS), their columns, synonyms, ready-made calculations, the join between them, and general instructions. Uploaded to `@PNEUMA_PROD.SEMANTIC.SEMANTIC_MODELS` and tested in Snowsight as `PNEUMA_ANALYST`.
+
+**Test results**
+| Question | Result |
+|---|---|
+| Vehicles of each type | Correct (Car 443 … Heavy Vehicle 2) |
+| Average speed by type | Correct target: Motorcycle 22.6 … Medium Vehicle 8.6 |
+| What happened after 08:20? | Right SQL, empty result (data ends 08:14:48), no explanation |
+| Average speed minute by minute | Empty: it kept the "after 08:20" filter from the previous question |
+| Time buses spent stopped | Expected ≈ 722 s (12 min), 42% of bus time |
+
+**To handle in 4c (semantic model)**
+- Remove the "say when there's no data" instruction. Cortex only writes SQL and never sees results.
+- State the covered time range (2018-11-01, 08:00:38–08:14:48, drone d1) in the model description.
+- Instruct it to summarize (per minute, per type, …) instead of listing raw readings, unless asked.
+- Add verified queries: data coverage, vehicles by type, average speed by type, top 5 by top speed, bus time stopped, average speed per minute.
+
+**To handle in step 5 (app)**
+- When a query returns no rows, say so and show the covered time range.
+- Show the generated SQL and the filters applied.
+- "New conversation" button: follow-up questions carry earlier filters along.
+
+**To handle in evals**
+- Ask each eval question in a fresh conversation.
+
+**Why notes**
+- **Cortex Analyst writes SQL; it doesn't see the answer.** Anything about the results (empty, too many rows) has to be handled by the app.
+- **Chats are conversations.** Each question is read in the context of earlier ones, which helps follow-ups and surprises independent questions.
+
+## Step 4c · Semantic model improved (done 2026-10-09)
+
+**What changed**
+- Description states what the data covers (d1, 2018-11-01, 08:00:38–08:14:48). Update it by hand when new recordings are loaded.
+- Instructions: "time stopped" means seconds; summarize instead of listing raw readings (max 100 rows); removed the "say when there's no data" line.
+- 6 verified queries (4 marked as starter questions): data coverage, vehicles by type, average speed by type, top 5 by top speed, bus time stopped, average speed per minute.
+
+**Test results:** all correct in fresh chats, including new wordings (taxi average speed 18.7, 153 motorcycles, stopped share by type with Medium Vehicle highest at 57.7%, minute-by-minute for buses only). "After 08:20" still returns an empty table with no explanation; that's for the app (step 5).
+
+**Why notes**
+- **Verified queries teach by example.** Cortex follows their patterns for similar questions, not only identical ones.
+- **Describe the data's limits in the model,** but don't expect Cortex to react to results; it never sees them.

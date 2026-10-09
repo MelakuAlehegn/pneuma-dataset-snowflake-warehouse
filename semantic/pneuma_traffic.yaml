@@ -1,0 +1,337 @@
+# =============================================================================
+# Semantic model for Cortex Analyst: pNEUMA traffic data
+#
+# Describes the prod mart tables in plain terms so Cortex Analyst can turn a
+# question into SQL. Lives in @PNEUMA_PROD.SEMANTIC.SEMANTIC_MODELS.
+#
+# Parts of each table:
+#   dimensions       things you group or filter by (vehicle type, drone)
+#   time_dimensions  dates and times
+#   facts            numbers on each row (speed, distance)
+#   metrics          ready-made calculations (average speed, number of vehicles)
+# =============================================================================
+
+# NOTE: the coverage sentence in the description below is written by hand.
+# Update it when new recordings are loaded.
+
+name: pneuma_traffic
+description: >
+  Drone recordings of traffic in downtown Athens (the pNEUMA dataset). Each
+  vehicle seen by a drone has its type and a summary of its trip; each
+  vehicle's position, speed and acceleration were recorded every 0.04 seconds.
+  The data currently covers one recording: drone d1 on 2018-11-01, with
+  readings from 08:00:38 to 08:14:48 local Athens time. Questions about other
+  days, drones or times will return no rows.
+
+tables:
+
+  # ---------------------------------------------------------------------------
+  - name: vehicles
+    description: >
+      One row per vehicle seen in a recording. Use for questions about how
+      many vehicles, vehicle types, and per-vehicle trips (distance, time in
+      view, top speed, time stopped).
+    synonyms: [tracks, cars, trips]
+    base_table:
+      database: PNEUMA_PROD
+      schema: MARTS
+      table: DIM_TRACK
+    primary_key:
+      columns: [track_sk]
+
+    dimensions:
+      - name: track_sk
+        description: Internal key that links a vehicle to its positions. Not meaningful to users.
+        expr: track_sk
+        data_type: varchar
+      - name: track_id
+        description: Vehicle number, unique within one recording.
+        synonyms: [vehicle id, vehicle number]
+        expr: track_id
+        data_type: number
+      - name: vehicle_type
+        description: Kind of vehicle.
+        synonyms: [type, vehicle category, kind of vehicle]
+        expr: vehicle_type
+        data_type: varchar
+        is_enum: true
+        sample_values: [Car, Motorcycle, Taxi, Bus, Medium Vehicle, Heavy Vehicle]
+      - name: drone_id
+        description: Drone that made the recording (d1, d2, ...).
+        synonyms: [drone, camera]
+        expr: drone_id
+        data_type: varchar
+        sample_values: [d1]
+
+    time_dimensions:
+      - name: recording_date
+        description: Day of the recording.
+        synonyms: [date, day]
+        expr: recording_date
+        data_type: date
+      - name: first_seen_at
+        description: Clock time the vehicle first appeared (local Athens time).
+        synonyms: [entered at, start time]
+        expr: first_seen_at
+        data_type: timestamp_ntz
+      - name: last_seen_at
+        description: Clock time the vehicle was last seen (local Athens time).
+        synonyms: [left at, end time]
+        expr: last_seen_at
+        data_type: timestamp_ntz
+      - name: window_start
+        description: Planned start of the recording window.
+        expr: window_start
+        data_type: timestamp_ntz
+      - name: window_end
+        description: >
+          Planned end of the recording window, from the file name. The actual
+          data can stop earlier; for when traffic was really observed use
+          first_seen_at / last_seen_at.
+        expr: window_end
+        data_type: timestamp_ntz
+
+    facts:
+      - name: total_distance_m
+        description: Distance the vehicle traveled while in view, in meters (from the source data).
+        synonyms: [distance, distance traveled]
+        expr: total_distance_m
+        data_type: float
+      - name: avg_speed_kmh
+        description: The vehicle's own average speed over its trip, in km/h (from the source data).
+        expr: avg_speed_kmh
+        data_type: float
+      - name: max_speed_kmh
+        description: Highest speed the vehicle reached, in km/h.
+        synonyms: [top speed, fastest speed]
+        expr: max_speed_kmh
+        data_type: float
+      - name: min_speed_kmh
+        description: Lowest speed the vehicle had, in km/h.
+        expr: min_speed_kmh
+        data_type: float
+      - name: duration_sec
+        description: How long the vehicle was in view, in seconds.
+        synonyms: [time in view, trip duration, how long]
+        expr: duration_sec
+        data_type: float
+      - name: point_count
+        description: Number of position readings recorded for the vehicle.
+        expr: point_count
+        data_type: number
+      - name: stopped_point_count
+        description: Number of readings where the vehicle was standing still (under 1 km/h).
+        expr: stopped_point_count
+        data_type: number
+
+    metrics:
+      - name: vehicle_count
+        description: Number of distinct vehicles.
+        synonyms: [number of vehicles, how many vehicles, vehicle volume]
+        expr: COUNT(DISTINCT track_sk)
+      - name: avg_trip_distance_m
+        description: Average distance per vehicle, in meters.
+        expr: AVG(total_distance_m)
+      - name: avg_time_in_view_sec
+        description: Average time a vehicle stayed in view, in seconds.
+        expr: AVG(duration_sec)
+      - name: share_of_time_stopped
+        description: Fraction of readings (0 to 1) where vehicles were standing still.
+        synonyms: [percent stopped, idle share]
+        expr: SUM(stopped_point_count) / NULLIF(SUM(point_count), 0)
+
+  # ---------------------------------------------------------------------------
+  - name: positions
+    description: >
+      One row per position reading: where a vehicle was, how fast it was going
+      and its acceleration, every 0.04 seconds. Use for questions about speeds
+      across all traffic, speeds over time, stopping, and distance driven.
+    synonyms: [readings, points, trajectory, observations]
+    base_table:
+      database: PNEUMA_PROD
+      schema: MARTS
+      table: FCT_TRAJECTORY_POINTS
+    primary_key:
+      columns: [trajectory_point_sk]
+
+    dimensions:
+      - name: trajectory_point_sk
+        description: Internal key of the reading. Not meaningful to users.
+        expr: trajectory_point_sk
+        data_type: varchar
+      - name: track_sk
+        description: Internal key of the vehicle this reading belongs to. Not meaningful to users.
+        expr: track_sk
+        data_type: varchar
+      - name: speed_bucket
+        description: "Speed band of the reading: STOPPED (<1 km/h), SLOW (1-10), NORMAL (10-50), FAST (50+)."
+        synonyms: [speed band, speed category]
+        expr: speed_bucket
+        data_type: varchar
+        is_enum: true
+        sample_values: [STOPPED, SLOW, NORMAL, FAST]
+
+    time_dimensions:
+      - name: recorded_at
+        description: Clock time of the reading (local Athens time). Readings are 0.04 seconds apart.
+        synonyms: [time, timestamp, when]
+        expr: recorded_at
+        data_type: timestamp_ntz
+
+    facts:
+      - name: speed_kmh
+        description: Speed at this reading, in km/h.
+        synonyms: [speed, velocity]
+        expr: speed_kmh
+        data_type: float
+      - name: latitude
+        description: Latitude of the vehicle.
+        expr: latitude
+        data_type: float
+      - name: longitude
+        description: Longitude of the vehicle.
+        expr: longitude
+        data_type: float
+      - name: lon_acceleration_ms2
+        description: Acceleration along the direction of travel, m/s². Negative means braking.
+        synonyms: [acceleration, braking]
+        expr: lon_acceleration_ms2
+        data_type: float
+      - name: lat_acceleration_ms2
+        description: Sideways acceleration, m/s² (turning).
+        expr: lat_acceleration_ms2
+        data_type: float
+      - name: delta_distance_m
+        description: Distance moved since the vehicle's previous reading, in meters.
+        expr: delta_distance_m
+        data_type: float
+      - name: delta_time_sec
+        description: Seconds since the vehicle's previous reading (normally 0.04).
+        expr: delta_time_sec
+        data_type: float
+
+    metrics:
+      - name: avg_speed_kmh
+        description: Average speed over all readings, in km/h. The default meaning of "average speed".
+        synonyms: [average speed, mean speed, typical speed]
+        expr: AVG(speed_kmh)
+      - name: max_speed_kmh
+        description: Highest speed in any reading, in km/h.
+        expr: MAX(speed_kmh)
+      - name: reading_count
+        description: Number of position readings.
+        expr: COUNT(*)
+      - name: distance_driven_km
+        description: Total distance driven, in kilometers, summed from reading to reading.
+        synonyms: [total distance, kilometers driven]
+        expr: SUM(delta_distance_m) / 1000
+      - name: time_stopped_sec
+        description: Total time spent standing still (under 1 km/h), in seconds.
+        synonyms: [idle time, waiting time]
+        expr: SUM(CASE WHEN speed_bucket = 'STOPPED' THEN delta_time_sec ELSE 0 END)
+
+# -----------------------------------------------------------------------------
+relationships:
+  - name: positions_to_vehicles
+    left_table: positions
+    right_table: vehicles
+    relationship_columns:
+      - left_column: track_sk
+        right_column: track_sk
+    join_type: left_outer
+    relationship_type: many_to_one
+
+custom_instructions: >
+  Times are local Athens time. "Average speed" means the average over position
+  readings (positions.avg_speed_kmh) unless the user asks about vehicles' own
+  average speeds. "Time stopped" means time, in seconds (positions.time_stopped_sec),
+  not a count of readings. The positions table has over a million rows: unless
+  the user explicitly asks for individual readings, summarize (for example per
+  minute, per vehicle type, or per vehicle) instead of listing raw rows, and
+  never return more than 100 rows. Round speeds to one decimal place. Never
+  show the internal key columns (track_sk, trajectory_point_sk).
+
+# -----------------------------------------------------------------------------
+# Verified queries: questions with SQL we've checked by hand. Cortex uses them
+# as worked examples; onboarding ones are suggested to users. SQL uses the
+# logical table names above, prefixed with two underscores.
+verified_queries:
+  - name: data_coverage
+    question: What time period does the data cover?
+    use_as_onboarding_question: true
+    verified_by: melakualehegn
+    verified_at: 1791504000
+    sql: |
+      SELECT
+        v.recording_date,
+        v.drone_id,
+        MIN(p.recorded_at) AS first_reading,
+        MAX(p.recorded_at) AS last_reading
+      FROM __positions AS p
+      LEFT JOIN __vehicles AS v ON p.track_sk = v.track_sk
+      GROUP BY v.recording_date, v.drone_id
+      ORDER BY v.recording_date, v.drone_id
+
+  - name: vehicles_by_type
+    question: How many vehicles of each type were recorded?
+    use_as_onboarding_question: true
+    verified_by: melakualehegn
+    verified_at: 1791504000
+    sql: |
+      SELECT
+        vehicle_type,
+        COUNT(DISTINCT track_sk) AS vehicle_count
+      FROM __vehicles
+      GROUP BY vehicle_type
+      ORDER BY vehicle_count DESC
+
+  - name: avg_speed_by_type
+    question: What is the average speed by vehicle type?
+    use_as_onboarding_question: true
+    verified_by: melakualehegn
+    verified_at: 1791504000
+    sql: |
+      SELECT
+        v.vehicle_type,
+        ROUND(AVG(p.speed_kmh), 1) AS avg_speed_kmh
+      FROM __positions AS p
+      LEFT JOIN __vehicles AS v ON p.track_sk = v.track_sk
+      GROUP BY v.vehicle_type
+      ORDER BY avg_speed_kmh DESC
+
+  - name: top_5_by_top_speed
+    question: Which 5 vehicles had the highest top speed?
+    verified_by: melakualehegn
+    verified_at: 1791504000
+    sql: |
+      SELECT
+        track_id,
+        vehicle_type,
+        ROUND(max_speed_kmh, 1) AS max_speed_kmh
+      FROM __vehicles
+      ORDER BY max_speed_kmh DESC
+      LIMIT 5
+
+  - name: bus_time_stopped
+    question: How much time did buses spend stopped?
+    verified_by: melakualehegn
+    verified_at: 1791504000
+    sql: |
+      SELECT
+        ROUND(SUM(CASE WHEN p.speed_bucket = 'STOPPED' THEN p.delta_time_sec ELSE 0 END), 1) AS time_stopped_sec
+      FROM __positions AS p
+      LEFT JOIN __vehicles AS v ON p.track_sk = v.track_sk
+      WHERE v.vehicle_type = 'Bus'
+
+  - name: avg_speed_per_minute
+    question: How did average speed change minute by minute?
+    use_as_onboarding_question: true
+    verified_by: melakualehegn
+    verified_at: 1791504000
+    sql: |
+      SELECT
+        DATE_TRUNC('minute', recorded_at) AS minute,
+        ROUND(AVG(speed_kmh), 1) AS avg_speed_kmh
+      FROM __positions
+      GROUP BY DATE_TRUNC('minute', recorded_at)
+      ORDER BY minute

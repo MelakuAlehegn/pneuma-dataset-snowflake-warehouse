@@ -1,0 +1,16 @@
+# Secrets and local config
+.env
+*.p8
+config.toml
+
+# Python
+__pycache__/
+.venv/
+
+# dbt
+target/
+dbt_packages/
+logs/
+
+# Data files (too large for git)
+data/

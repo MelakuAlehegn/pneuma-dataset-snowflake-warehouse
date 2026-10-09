@@ -7,9 +7,10 @@
 --                       PNEUMA_DEV                 PNEUMA_PROD
 --   PNEUMA_LOADER       RAW_RW                     RAW_RW
 --   PNEUMA_TRANSFORMER  RAW_R + TRANSFORM_RW       RAW_R + TRANSFORM_RW
---   PNEUMA_ANALYST      -                          MARTS_R + SEMANTIC_R
+--   PNEUMA_ANALYST      -                          MARTS_R + SEMANTIC_R + APP_USE
+--   PNEUMA_APP          -                          MARTS_R + SEMANTIC_R + APP_DEPLOY
 --
--- The analyst role only ever sees finished prod tables, read-only.
+-- The analyst and app roles only ever see finished prod tables, read-only.
 --
 -- Safe to re-run.
 -- =============================================================================
@@ -29,3 +30,9 @@ GRANT DATABASE ROLE PNEUMA_PROD.TRANSFORM_RW TO ROLE PNEUMA_TRANSFORMER;
 -- Analyst (app + Cortex Analyst)
 GRANT DATABASE ROLE PNEUMA_PROD.MARTS_R      TO ROLE PNEUMA_ANALYST;
 GRANT DATABASE ROLE PNEUMA_PROD.SEMANTIC_R   TO ROLE PNEUMA_ANALYST;
+GRANT DATABASE ROLE PNEUMA_PROD.APP_USE      TO ROLE PNEUMA_ANALYST;
+
+-- App owner (runs the Streamlit app)
+GRANT DATABASE ROLE PNEUMA_PROD.MARTS_R      TO ROLE PNEUMA_APP;
+GRANT DATABASE ROLE PNEUMA_PROD.SEMANTIC_R   TO ROLE PNEUMA_APP;
+GRANT DATABASE ROLE PNEUMA_PROD.APP_DEPLOY   TO ROLE PNEUMA_APP;

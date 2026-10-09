@@ -135,3 +135,31 @@ Short notes on what was done in each step, plus the "why" behind key choices.
 **Why notes**
 - **Verified queries teach by example.** Cortex follows their patterns for similar questions, not only identical ones.
 - **Describe the data's limits in the model,** but don't expect Cortex to react to results; it never sees them.
+
+## Step 5a · Minimal app running in Snowflake (done 2026-10-09)
+
+**What was built**
+- New role `PNEUMA_APP`: owns and runs the app. Read-only on prod marts and the semantic file, can use Cortex and `ANALYST_WH`, can create apps only in `PNEUMA_PROD.APP` (bundle `APP_DEPLOY`).
+- `PNEUMA_ANALYST` can open apps (bundle `APP_USE`); per-app permission granted after each deploy (`snowflake/app/grant_app_usage.sql`).
+- `app/streamlit_app.py` + `app/snowflake.yml`: question box → Cortex Analyst → shows interpretation, SQL and result table. Deployed with `snow streamlit deploy`.
+- Blocked checks now 9 (app role can't create tables or see dev).
+
+**Why notes**
+- **A Streamlit app runs as its owner.** Viewers only need permission to open it; every query runs with the owner role's rights. So the owner role is the real safety boundary, and it gets nothing beyond read-only.
+- **Two Streamlit runtimes.** The older warehouse runtime has a `_snowflake` helper for calling APIs; the newer container runtime doesn't. The app uses the helper if present, otherwise calls the API over HTTPS with its own session token.
+- **Re-grant after redeploy.** `--replace` recreates the app, which can drop permissions granted on it.
+- **Playground SQL vs real SQL.** Snowsight shows logical names (`FROM vehicles`); the API returns the runnable version with a `WITH` block mapping them to real tables.
+
+## Step 5b · Full chat app (done 2026-10-09)
+
+**What was built**
+- Chat with history sent to Cortex (follow-ups work), **New conversation** button, four starter questions.
+- Each answer: Cortex's reading of the question, an Altair chart when it fits (line for time, bar for labels), the table, and the SQL in a collapsible section.
+- Empty results say "No data for that. Recordings cover …", with the time span read live from the data.
+- Cortex suggestions as buttons; failures shown as messages, not crashes. Each query runs once per answer.
+- All six test questions passed, including a vague one (suggestions) and "Delete all the buses" (Cortex refused; the app role couldn't delete anyway).
+
+**Why notes**
+- **Cortex needs strictly alternating turns** (user, analyst, user …). Save a question only together with its answer, or an interrupted page run leaves a lone question and the next call fails.
+- **Streamlit reruns the whole script on every click.** Keep results in session state so old queries don't re-run.
+- **Two layers of safety.** Cortex declined the delete itself, but the real guarantee is the read-only owner role.

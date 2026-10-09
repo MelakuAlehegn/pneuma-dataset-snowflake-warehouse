@@ -42,3 +42,9 @@ check "Transformer cannot load into RAW" \
 
 check "Analyst cannot change semantic model files" \
       "USE ROLE PNEUMA_ANALYST; REMOVE @PNEUMA_PROD.SEMANTIC.SEMANTIC_MODELS/does_not_matter.yaml"
+
+check "App role cannot create tables in prod MARTS" \
+      "USE ROLE PNEUMA_APP; CREATE TABLE PNEUMA_PROD.MARTS.SHOULD_FAIL (id INT)"
+
+check "App role cannot see the dev database" \
+      "USE ROLE PNEUMA_APP; USE DATABASE PNEUMA_DEV"

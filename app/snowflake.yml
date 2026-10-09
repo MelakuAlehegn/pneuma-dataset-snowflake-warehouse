@@ -1,0 +1,19 @@
+# Tells `snow streamlit deploy` what to create and which files to upload.
+# Deploy as PNEUMA_APP, so that role owns the app and the app runs with its
+# (read-only) permissions:
+#   snow streamlit deploy --project app --role PNEUMA_APP --replace
+
+definition_version: 2
+
+entities:
+  pneuma_traffic_app:
+    type: streamlit
+    identifier:
+      name: PNEUMA_TRAFFIC_APP
+      database: PNEUMA_PROD
+      schema: APP
+    title: "pNEUMA Traffic Analyst"
+    query_warehouse: ANALYST_WH
+    main_file: streamlit_app.py
+    artifacts:
+      - streamlit_app.py

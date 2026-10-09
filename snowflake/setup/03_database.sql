@@ -21,6 +21,8 @@
 --                           upload semantic model files
 --             MARTS_R       read MARTS
 --             SEMANTIC_R    read semantic model files
+--             APP_DEPLOY    create Streamlit apps in APP
+--             APP_USE       open apps in APP (each app is granted separately)
 --   These get handed to the job roles in 04_access.sql. Because they live
 --   inside the database, they come along automatically when the database is
 --   cloned.
@@ -61,6 +63,8 @@ CREATE DATABASE ROLE IF NOT EXISTS RAW_RW       COMMENT = 'Read and load RAW.';
 CREATE DATABASE ROLE IF NOT EXISTS TRANSFORM_RW COMMENT = 'Build objects in STAGING, INTERMEDIATE and MARTS.';
 CREATE DATABASE ROLE IF NOT EXISTS MARTS_R      COMMENT = 'Read MARTS.';
 CREATE DATABASE ROLE IF NOT EXISTS SEMANTIC_R   COMMENT = 'Read semantic model files.';
+CREATE DATABASE ROLE IF NOT EXISTS APP_DEPLOY   COMMENT = 'Create Streamlit apps in APP.';
+CREATE DATABASE ROLE IF NOT EXISTS APP_USE      COMMENT = 'Open Streamlit apps in APP.';
 
 -- RAW_RW can do everything RAW_R can, plus write.
 GRANT DATABASE ROLE RAW_R TO DATABASE ROLE RAW_RW;
@@ -119,3 +123,17 @@ GRANT READ  ON STAGE SEMANTIC.SEMANTIC_MODELS TO DATABASE ROLE SEMANTIC_R;
 -- TRANSFORM_RW: upload new versions of the YAML files.
 GRANT USAGE       ON SCHEMA SEMANTIC                TO DATABASE ROLE TRANSFORM_RW;
 GRANT READ, WRITE ON STAGE SEMANTIC.SEMANTIC_MODELS TO DATABASE ROLE TRANSFORM_RW;
+
+-- ---------------------------------------------------------------------------
+-- Streamlit apps
+-- ---------------------------------------------------------------------------
+-- APP_DEPLOY: create apps, plus the stage their code files are uploaded to.
+GRANT USAGE ON DATABASE IDENTIFIER($db_name)       TO DATABASE ROLE APP_DEPLOY;
+GRANT USAGE, CREATE STREAMLIT, CREATE STAGE
+    ON SCHEMA APP                                  TO DATABASE ROLE APP_DEPLOY;
+
+-- APP_USE: see the APP schema. Permission to open a specific app is granted
+-- after it's deployed (snowflake/app/grant_app_usage.sql), because the app
+-- doesn't exist yet when this file runs.
+GRANT USAGE ON DATABASE IDENTIFIER($db_name)       TO DATABASE ROLE APP_USE;
+GRANT USAGE ON SCHEMA APP                          TO DATABASE ROLE APP_USE;

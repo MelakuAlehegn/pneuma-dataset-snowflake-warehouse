@@ -31,6 +31,8 @@ snowflake/setup/   one-time account setup: roles, warehouses, databases, permiss
 snowflake/ingest/  loading pNEUMA files into RAW
 dbt/               dbt project (runs inside Snowflake)
 semantic/          Cortex Analyst semantic model (YAML)
+app/               Streamlit app (runs inside Snowflake)
+snowflake/app/     permission to open the app
 docs/              worklog and design notes
 ```
 
@@ -83,4 +85,11 @@ snow dbt execute --database PNEUMA_DEV --schema OPS --role PNEUMA_TRANSFORMER --
 snow stage copy semantic/pneuma_traffic.yaml @PNEUMA_PROD.SEMANTIC.SEMANTIC_MODELS \
     --role PNEUMA_TRANSFORMER --overwrite
 snow sql --role SYSADMIN -q "ALTER STAGE PNEUMA_PROD.SEMANTIC.SEMANTIC_MODELS REFRESH"
+```
+
+## App
+
+```bash
+snow streamlit deploy --project app --role PNEUMA_APP --replace   # PNEUMA_APP owns and runs it
+snow sql -f snowflake/app/grant_app_usage.sql                     # let PNEUMA_ANALYST open it
 ```

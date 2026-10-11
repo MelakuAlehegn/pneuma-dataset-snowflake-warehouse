@@ -7,7 +7,7 @@ Cortex Analyst and a Streamlit app.
 This combines and upgrades two earlier projects: a Postgres + dbt warehouse
 and a separate natural-language-to-SQL app.
 
-> Work in progress. See [docs/worklog.md](docs/worklog.md) for what has been done so far.
+> Work in progress. See [docs/roadmap.md](docs/roadmap.md) for the plan and [docs/worklog.md](docs/worklog.md) for what has been done.
 
 ## How it fits together
 
